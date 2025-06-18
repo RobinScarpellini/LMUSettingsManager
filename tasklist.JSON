@@ -1,0 +1,1023 @@
+{
+    "application": {
+      "name": "LMU Configuration Editor",
+      "version": "1.0.0",
+      "description": "A desktop application for managing Le Mans Ultimate game configuration files with a user-friendly interface",
+      "purpose": {
+        "problem_statement": "Le Mans Ultimate players must manually edit complex JSON and INI files to change game settings, risking syntax errors and making it difficult to manage multiple configurations for different racing scenarios",
+        "solution": "Provide a visual editor that allows players to easily modify settings, save multiple named configurations, compare setups, and switch between them without manual file editing",
+        "target_users": [
+          "Sim racers needing different setups for various conditions",
+          "League organizers sharing standardized configurations",
+          "Casual players wanting easier access to advanced settings",
+          "Content creators requiring quick configuration switches"
+        ]
+      },
+      "key_benefits": [
+        "Visual interface for all game settings with descriptions",
+        "Multiple named configuration support",
+        "One-click configuration switching",
+        "Settings comparison tool",
+        "Search functionality across all options",
+        "Preserves file structure and comments"
+      ]
+    },
+    "development_phases": {
+      "phase_1": {
+        "name": "Core Foundation",
+        "description": "Establish the application foundation with game detection and file system interaction",
+        "tasks": [
+          {
+            "task_id": "1.1",
+            "name": "Game Installation Detection",
+            "user_perspective": {
+              "description": "When I launch the application for the first time, it automatically finds my Le Mans Ultimate installation without me having to browse for it",
+              "scenario": "User installs and launches the app. The app checks Steam registry, finds LMU installation at 'C:\\Steam\\steamapps\\common\\Le Mans Ultimate', and loads the configuration files automatically",
+              "acceptance_criteria": [
+                "App finds game without user intervention",
+                "Shows game path in status bar",
+                "Falls back to manual browse if not found",
+                "Remembers path for future launches"
+              ]
+            },
+            "functional_specification": {
+              "description": "Implement automatic game detection through Steam registry scanning with fallback to manual selection",
+              "requirements": [
+                "Read Steam installation path from Windows registry",
+                "Parse Steam library folders configuration",
+                "Validate game installation by checking required files",
+                "Store discovered path for future use",
+                "Provide manual browse dialog as fallback"
+              ],
+              "error_handling": [
+                "Steam not installed: Show manual browse",
+                "Game not found: Show informative message with browse option",
+                "Invalid installation: Explain what files are missing"
+              ]
+            },
+            "technical_specification": {
+              "modules": {
+                "core/game_detector.py": {
+                  "class": "GameDetector",
+                  "methods": [
+                    "find_steam_installation() -> Optional[Path]",
+                    "get_steam_library_folders() -> List[Path]",
+                    "find_game_in_libraries() -> Optional[Path]",
+                    "validate_game_installation(path: Path) -> bool",
+                    "get_config_directory(game_path: Path) -> Path"
+                  ],
+                  "registry_keys": [
+                    "HKEY_LOCAL_MACHINE\\SOFTWARE\\Valve\\Steam",
+                    "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Valve\\Steam"
+                  ]
+                },
+                "utils/settings_manager.py": {
+                  "class": "SettingsManager",
+                  "methods": [
+                    "save_game_path(path: Path)",
+                    "load_game_path() -> Optional[Path]",
+                    "get_settings_file() -> Path"
+                  ],
+                  "storage": "JSON file in user's AppData/Local/LMUConfigEditor/"
+                }
+              },
+              "data_flow": [
+                "Check saved settings for previous path",
+                "Validate saved path still exists",
+                "If invalid, scan Steam registry",
+                "Parse libraryfolders.vdf for all Steam libraries",
+                "Search each library for 'Le Mans Ultimate'",
+                "Validate UserData/player directory exists",
+                "Save valid path for future use"
+              ]
+            }
+          },
+          {
+            "task_id": "1.2",
+            "name": "Configuration File Parser",
+            "user_perspective": {
+              "description": "The application reads my game settings and shows them in an organized way with helpful descriptions for each option",
+              "scenario": "After game detection, user sees all their current settings organized in tabs. Each setting shows its current value and a description explaining what it does. Comments from the JSON file appear as helpful tooltips",
+              "acceptance_criteria": [
+                "All settings from settings.json are displayed",
+                "All settings from Config_DX11.ini are displayed",
+                "Descriptions are shown for each setting",
+                "Original values are preserved exactly",
+                "File structure is maintained"
+              ]
+            },
+            "functional_specification": {
+              "description": "Parse game configuration files while preserving structure, comments, and data types",
+              "requirements": [
+                "Parse JSON with embedded comment descriptions",
+                "Parse INI files with sections and key-value pairs",
+                "Extract descriptions from comment markers",
+                "Preserve original data types",
+                "Maintain field ordering",
+                "Handle malformed files gracefully"
+              ],
+              "parsing_rules": [
+                "JSON comments marked with // and # contain descriptions",
+                "INI section headers define categories",
+                "Boolean values: true/false, 0/1, on/off",
+                "Arrays and objects stored as raw JSON strings"
+              ]
+            },
+            "technical_specification": {
+              "modules": {
+                "core/parsers/json_parser.py": {
+                  "class": "JsonWithCommentsParser",
+                  "methods": [
+                    "parse_file(filepath: Path) -> ConfigData",
+                    "extract_descriptions(lines: List[str]) -> Dict[str, str]",
+                    "build_field_hierarchy(data: dict) -> OrderedDict",
+                    "preserve_types(value: Any) -> FieldType"
+                  ],
+                  "data_structures": {
+                    "ConfigData": {
+                      "fields": "OrderedDict[str, FieldInfo]",
+                      "categories": "OrderedDict[str, List[str]]",
+                      "descriptions": "Dict[str, str]",
+                      "types": "Dict[str, FieldType]"
+                    },
+                    "FieldInfo": {
+                      "path": "str",
+                      "value": "Any",
+                      "description": "Optional[str]",
+                      "type": "FieldType",
+                      "category": "str"
+                    }
+                  }
+                },
+                "core/parsers/ini_parser.py": {
+                  "class": "IniParser",
+                  "methods": [
+                    "parse_file(filepath: Path) -> ConfigData",
+                    "parse_with_comments(content: str) -> OrderedDict",
+                    "write_preserving_structure(data: dict, filepath: Path)"
+                  ]
+                }
+              },
+              "parsing_strategy": [
+                "Read file line by line to preserve structure",
+                "Use regex to extract field names and descriptions",
+                "Build hierarchical data structure",
+                "Track original line numbers for write-back",
+                "Store metadata separately from values"
+              ]
+            }
+          },
+          {
+            "task_id": "1.3",
+            "name": "Data Model and Storage",
+            "user_perspective": {
+              "description": "My changes are tracked as I edit settings, and I can see which settings I've modified before saving",
+              "scenario": "User changes AI difficulty from 95 to 100. The field shows a visual indicator that it's been modified. The 'Apply Changes' button becomes enabled. A counter shows '1 change pending'",
+              "acceptance_criteria": [
+                "Modified fields are visually marked",
+                "Change count is displayed",
+                "Can revert individual changes",
+                "Apply button enables only with changes",
+                "Original values are remembered"
+              ]
+            },
+            "functional_specification": {
+              "description": "Create a robust data model that tracks configuration state, modifications, and supports undo/redo",
+              "requirements": [
+                "Store current and original values",
+                "Track modification state per field",
+                "Support value validation",
+                "Enable change detection",
+                "Provide rollback capability",
+                "Maintain data integrity"
+              ]
+            },
+            "technical_specification": {
+              "modules": {
+                "core/models/configuration_model.py": {
+                  "class": "ConfigurationModel",
+                  "methods": [
+                    "load_configuration(json_data: ConfigData, ini_data: ConfigData)",
+                    "get_field_value(path: str) -> Any",
+                    "set_field_value(path: str, value: Any)",
+                    "is_field_modified(path: str) -> bool",
+                    "get_modified_fields() -> List[str]",
+                    "revert_field(path: str)",
+                    "revert_all_changes()",
+                    "apply_changes() -> Tuple[bool, Optional[str]]"
+                  ],
+                  "properties": {
+                    "has_changes": "bool",
+                    "change_count": "int",
+                    "is_valid": "bool"
+                  }
+                },
+                "core/models/field_state.py": {
+                  "class": "FieldState",
+                  "attributes": {
+                    "original_value": "Any",
+                    "current_value": "Any",
+                    "is_modified": "bool",
+                    "modification_time": "Optional[datetime]",
+                    "validation_errors": "List[str]"
+                  }
+                }
+              },
+              "state_management": {
+                "change_tracking": "Observer pattern for field modifications",
+                "validation": "Type-based validation on value changes",
+                "persistence": "Write changes back preserving structure",
+                "transactions": "Atomic updates for related fields"
+              }
+            }
+          }
+        ]
+      },
+      "phase_2": {
+        "name": "User Interface Foundation",
+        "description": "Build the core UI components and layout",
+        "tasks": [
+          {
+            "task_id": "2.1",
+            "name": "Main Window and Layout",
+            "user_perspective": {
+              "description": "I see a well-organized window with my settings in categorized tabs and a configuration manager on the right",
+              "scenario": "User launches app and sees a clean interface with DX11 graphics settings in the first tab, other categories in subsequent tabs, and a panel on the right showing saved configurations",
+              "acceptance_criteria": [
+                "Window opens at appropriate size (1200x800)",
+                "Tabs are clearly labeled by category",
+                "Configuration panel is visible on right",
+                "Status bar shows current state",
+                "Window remembers size and position"
+              ]
+            },
+            "functional_specification": {
+              "description": "Create the main application window with tabbed interface and configuration management panel",
+              "requirements": [
+                "Tab widget for category organization",
+                "Scrollable content area per tab",
+                "Right-side configuration manager",
+                "Status bar with apply button",
+                "Responsive layout that scales",
+                "Persistent window geometry"
+              ],
+              "layout_specifications": {
+                "window_default_size": "1200x800",
+                "minimum_size": "800x600",
+                "config_panel_width": "300px",
+                "tab_content_margins": "10px",
+                "status_bar_height": "30px"
+              }
+            },
+            "technical_specification": {
+              "modules": {
+                "ui/main_window.py": {
+                  "class": "MainWindow(QMainWindow)",
+                  "methods": [
+                    "setup_ui()",
+                    "create_menu_bar()",
+                    "create_central_widget()",
+                    "create_status_bar()",
+                    "load_window_geometry()",
+                    "save_window_geometry()"
+                  ],
+                  "signals": [
+                    "configuration_loaded",
+                    "changes_applied",
+                    "search_triggered"
+                  ]
+                },
+                "ui/widgets/central_widget.py": {
+                  "class": "CentralWidget(QWidget)",
+                  "layout": "QHBoxLayout",
+                  "components": {
+                    "left_panel": "CategoryTabWidget",
+                    "right_panel": "ConfigurationManagerPanel"
+                  }
+                },
+                "ui/widgets/category_tabs.py": {
+                  "class": "CategoryTabWidget(QTabWidget)",
+                  "methods": [
+                    "add_category_tab(name: str, fields: List[FieldInfo])",
+                    "get_current_category() -> str",
+                    "highlight_search_results(results: List[str])"
+                  ]
+                }
+              },
+              "ui_structure": {
+                "main_layout": "QVBoxLayout",
+                "content_layout": "QHBoxLayout with QSplitter",
+                "tab_organization": "One tab per category, DX11 first",
+                "sizing_policy": "Tabs expand, config panel fixed width"
+              }
+            }
+          },
+          {
+            "task_id": "2.2",
+            "name": "Field Display Widgets",
+            "user_perspective": {
+              "description": "Each setting is displayed clearly with its name, current value, and a helpful description explaining what it does",
+              "scenario": "User looks at 'AI Driver Strength' setting and sees: the label 'AI Driver Strength:', an input box showing '95', and below it gray text explaining '100 should approximate real life'",
+              "acceptance_criteria": [
+                "Field name is clearly visible",
+                "Current value is editable",
+                "Description text is readable but subtle",
+                "Different input types for different data",
+                "Visual feedback on hover/focus",
+                "Consistent spacing between fields"
+              ]
+            },
+            "functional_specification": {
+              "description": "Create reusable field widgets that display settings with appropriate input controls",
+              "requirements": [
+                "Support multiple input types (text, toggle, number)",
+                "Display multi-line descriptions",
+                "Show modification indicator",
+                "Provide input validation feedback",
+                "Handle special characters in values",
+                "Support keyboard navigation"
+              ],
+              "widget_types": {
+                "text_input": "Single line text for strings/numbers",
+                "toggle_switch": "Custom on/off switch for booleans",
+                "text_area": "Multi-line for JSON arrays/objects",
+                "slider": "For numeric ranges (future)",
+                "dropdown": "For enum values (future)"
+              }
+            },
+            "technical_specification": {
+              "modules": {
+                "ui/widgets/field_widget.py": {
+                  "class": "FieldWidget(QWidget)",
+                  "methods": [
+                    "set_field_info(info: FieldInfo)",
+                    "get_current_value() -> Any",
+                    "set_modified_state(modified: bool)",
+                    "highlight_search_match()",
+                    "revert_to_original()"
+                  ],
+                  "signals": [
+                    "value_changed(field_path: str, new_value: Any)",
+                    "revert_requested(field_path: str)"
+                  ],
+                  "subcomponents": {
+                    "label": "QLabel with bold font",
+                    "input_widget": "Type-specific control",
+                    "description": "QLabel with word wrap",
+                    "modified_indicator": "QLabel with icon"
+                  }
+                },
+                "ui/widgets/input_controls.py": {
+                  "classes": {
+                    "TextInput": "QLineEdit subclass",
+                    "ToggleSwitch": "Custom QWidget with animation",
+                    "JsonTextArea": "QTextEdit with syntax highlighting"
+                  }
+                }
+              },
+              "styling": {
+                "field_spacing": "8px between fields",
+                "description_color": "#666666",
+                "modified_indicator": "Orange dot or border",
+                "focus_highlight": "Blue border on active field"
+              }
+            }
+          },
+          {
+            "task_id": "2.3",
+            "name": "Search Functionality",
+            "user_perspective": {
+              "description": "I can quickly find any setting by typing keywords in the search box at the top of the window",
+              "scenario": "User types 'damage' in search box. The app immediately switches to the Game Options tab and highlights the 'Damage Multiplier' field. Other matches like 'Tire Damage' are also highlighted",
+              "acceptance_criteria": [
+                "Search box is always visible at top",
+                "Results appear as user types",
+                "First match is auto-selected",
+                "All matches are highlighted",
+                "Can navigate between matches",
+                "Clear button resets search"
+              ]
+            },
+            "functional_specification": {
+              "description": "Implement real-time search across all settings and descriptions",
+              "requirements": [
+                "Search in field names and descriptions",
+                "Case-insensitive matching",
+                "Partial word matching",
+                "Navigate to first result automatically",
+                "Support keyboard shortcuts (Ctrl+F)",
+                "Show match count in status"
+              ],
+              "search_behavior": {
+                "delay": "300ms debounce on typing",
+                "minimum_length": "2 characters",
+                "result_limit": "No limit, show all",
+                "navigation": "F3/Shift+F3 for next/previous"
+              }
+            },
+            "technical_specification": {
+              "modules": {
+                "ui/widgets/search_widget.py": {
+                  "class": "SearchWidget(QWidget)",
+                  "methods": [
+                    "perform_search(query: str)",
+                    "clear_search()",
+                    "navigate_next_result()",
+                    "navigate_previous_result()"
+                  ],
+                  "signals": [
+                    "search_requested(query: str)",
+                    "search_cleared()",
+                    "result_navigation(direction: int)"
+                  ],
+                  "components": {
+                    "search_input": "QLineEdit with icon",
+                    "clear_button": "QPushButton",
+                    "result_counter": "QLabel"
+                  }
+                },
+                "core/search_engine.py": {
+                  "class": "SearchEngine",
+                  "methods": [
+                    "search(query: str, model: ConfigurationModel) -> List[SearchResult]",
+                    "rank_results(results: List[SearchResult]) -> List[SearchResult]"
+                  ],
+                  "data_structures": {
+                    "SearchResult": {
+                      "field_path": "str",
+                      "category": "str",
+                      "match_type": "Enum(NAME, DESCRIPTION)",
+                      "relevance_score": "float"
+                    }
+                  }
+                }
+              },
+              "implementation_details": {
+                "indexing": "Build search index on load",
+                "algorithms": "Simple substring match, future: fuzzy matching",
+                "performance": "Debounce input, search in worker thread",
+                "ui_updates": "Highlight without blocking"
+              }
+            }
+          }
+        ]
+      },
+      "phase_3": {
+        "name": "Configuration Management",
+        "description": "Implement save, load, and management of multiple configurations",
+        "tasks": [
+          {
+            "task_id": "3.1",
+            "name": "Save Configuration",
+            "user_perspective": {
+              "description": "I can save my current settings with a custom name to use later for specific racing conditions",
+              "scenario": "User sets up ideal wet weather settings, clicks 'Save As', enters 'Wet Race Setup' as the name, and clicks OK. The configuration appears in the saved list immediately",
+              "acceptance_criteria": [
+                "Save dialog prompts for name",
+                "Name validation prevents errors",
+                "Duplicate names are detected",
+                "Success confirmation shown",
+                "New config appears in list",
+                "Both JSON and INI files saved"
+              ]
+            },
+            "functional_specification": {
+              "description": "Allow users to save current configuration state with custom names",
+              "requirements": [
+                "Modal dialog for name input",
+                "Validate name for file system compatibility",
+                "Check for existing configurations",
+                "Save both settings.json and Config_DX11.ini",
+                "Update configuration list after save",
+                "Show success/error feedback"
+              ],
+              "naming_rules": {
+                "allowed_characters": "Letters, numbers, spaces, hyphens, underscores",
+                "forbidden_characters": "/ \\ : * ? \" < > |",
+                "max_length": "50 characters",
+                "reserved_names": "Cannot use 'default', 'active', etc."
+              }
+            },
+            "technical_specification": {
+              "modules": {
+                "ui/dialogs/save_dialog.py": {
+                  "class": "SaveConfigurationDialog(QDialog)",
+                  "methods": [
+                    "validate_name(name: str) -> Tuple[bool, str]",
+                    "check_duplicate(name: str) -> bool",
+                    "get_configuration_name() -> Optional[str]"
+                  ],
+                  "ui_elements": {
+                    "name_input": "QLineEdit",
+                    "error_label": "QLabel for validation messages",
+                    "ok_button": "QPushButton (disabled until valid)",
+                    "cancel_button": "QPushButton"
+                  }
+                },
+                "core/configuration_manager.py": {
+                  "class": "ConfigurationManager",
+                  "methods": [
+                    "save_configuration(name: str, model: ConfigurationModel) -> bool",
+                    "generate_filename(name: str, file_type: str) -> str",
+                    "write_configuration_files(name: str, json_data: dict, ini_data: dict)"
+                  ],
+                  "file_operations": {
+                    "json_file": "conf_{name}_settings.json",
+                    "ini_file": "conf_{name}_Config_DX11.ini",
+                    "encoding": "UTF-8 for all files",
+                    "backup": "Create .bak before overwriting"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "task_id": "3.2",
+            "name": "Load Configuration",
+            "user_perspective": {
+              "description": "I can quickly switch between my saved configurations with a single click",
+              "scenario": "User selects 'Qualifying Setup' from the list and clicks Load. If they have unsaved changes, a dialog asks to confirm. The configuration loads and all settings update to the saved values",
+              "acceptance_criteria": [
+                "Select config from list",
+                "Load button activates on selection",
+                "Unsaved changes prompt appears",
+                "All settings update after load",
+                "Status shows loaded config name",
+                "UI reflects new values immediately"
+              ]
+            },
+            "functional_specification": {
+              "description": "Load saved configurations and update all application state",
+              "requirements": [
+                "List selection enables load button",
+                "Check for unsaved changes before load",
+                "Parse both configuration files",
+                "Update model with loaded data",
+                "Refresh all UI components",
+                "Handle missing or corrupted files"
+              ],
+              "load_process": [
+                "User selects configuration",
+                "Check for modifications",
+                "Show confirmation if needed",
+                "Read configuration files",
+                "Validate file contents",
+                "Update data model",
+                "Refresh UI widgets"
+              ]
+            },
+            "technical_specification": {
+              "modules": {
+                "ui/widgets/config_list.py": {
+                  "class": "ConfigurationListWidget(QListWidget)",
+                  "methods": [
+                    "populate_configurations()",
+                    "get_selected_configuration() -> Optional[str]",
+                    "refresh_list()"
+                  ],
+                  "signals": [
+                    "configuration_selected(name: str)",
+                    "configuration_double_clicked(name: str)"
+                  ]
+                },
+                "core/config_loader.py": {
+                  "class": "ConfigurationLoader",
+                  "methods": [
+                    "load_configuration(name: str) -> Tuple[ConfigData, ConfigData]",
+                    "validate_configuration_pair(name: str) -> bool",
+                    "handle_missing_file(filepath: Path) -> ConfigData"
+                  ],
+                  "error_handling": {
+                    "missing_file": "Use default values",
+                    "parse_error": "Show error dialog with details",
+                    "partial_load": "Load what's valid, warn about issues"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "task_id": "3.3",
+            "name": "Configuration Comparison",
+            "user_perspective": {
+              "description": "I can compare my current settings with any saved configuration to see what's different",
+              "scenario": "User selects 'Race Setup' and clicks Compare. A dialog shows a table with only the settings that differ: AI Strength (Current: 85, Race Setup: 100), Damage (Current: 50%, Race Setup: 100%)",
+              "acceptance_criteria": [
+                "Compare button opens dialog",
+                "Shows only different values",
+                "Clear three-column layout",
+                "Values are formatted nicely",
+                "Can copy values from dialog",
+                "Close button returns to main window"
+              ]
+            },
+            "functional_specification": {
+              "description": "Display differences between active and selected configuration",
+              "requirements": [
+                "Modal comparison dialog",
+                "Three-column table layout",
+                "Filter to show only differences",
+                "Format values for readability",
+                "Support for both JSON and INI settings",
+                "Sortable by field name or category"
+              ],
+              "comparison_features": {
+                "columns": ["Setting Name", "Current Value", "Selected Config Value"],
+                "filtering": "Hide identical values",
+                "sorting": "Alphabetical by name or by category",
+                "export": "Copy to clipboard as table"
+              }
+            },
+            "technical_specification": {
+              "modules": {
+                "ui/dialogs/compare_dialog.py": {
+                  "class": "ComparisonDialog(QDialog)",
+                  "methods": [
+                    "load_comparison_data(current: ConfigData, selected: ConfigData)",
+                    "filter_differences() -> List[DifferenceItem]",
+                    "format_value_for_display(value: Any) -> str"
+                  ],
+                  "widgets": {
+                    "comparison_table": "QTableWidget",
+                    "filter_checkbox": "QCheckBox (show only differences)",
+                    "export_button": "QPushButton"
+                  }
+                },
+                "core/comparison_engine.py": {
+                  "class": "ComparisonEngine",
+                  "methods": [
+                    "compare_configurations(config1: ConfigData, config2: ConfigData) -> List[Difference]",
+                    "categorize_differences(differences: List[Difference]) -> Dict[str, List[Difference]]"
+                  ],
+                  "data_structures": {
+                    "Difference": {
+                      "field_path": "str",
+                      "field_name": "str",
+                      "category": "str",
+                      "value1": "Any",
+                      "value2": "Any",
+                      "type": "FieldType"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "task_id": "3.4",
+            "name": "Apply Changes",
+            "user_perspective": {
+              "description": "I can save my changes to the game files so they take effect when I launch Le Mans Ultimate",
+              "scenario": "User modifies several settings. The 'Apply Changes' button shows '5 changes pending'. User clicks it, sees 'Changes saved successfully' message, and the button becomes disabled again",
+              "acceptance_criteria": [
+                "Button shows pending change count",
+                "Only enabled when changes exist",
+                "Success message appears after save",
+                "Preserves file structure exactly",
+                "No data loss on save",
+                "Error handling for write failures"
+              ]
+            },
+            "functional_specification": {
+              "description": "Write modified settings back to game configuration files",
+              "requirements": [
+                "Track all modifications",
+                "Show count of pending changes",
+                "Write files preserving structure",
+                "Maintain comments and formatting",
+                "Atomic writes (backup first)",
+                "Clear modification state after save"
+              ],
+              "save_process": [
+                "Create backup files (.bak)",
+                "Generate new file content",
+                "Preserve structure and comments",
+                "Write atomically",
+                "Verify write success",
+                "Clean up backups on success"
+              ]
+            },
+            "technical_specification": {
+              "modules": {
+                "ui/widgets/apply_button.py": {
+                  "class": "ApplyChangesButton(QPushButton)",
+                  "methods": [
+                    "update_state(change_count: int)",
+                    "set_saving_state()",
+                    "set_success_state()",
+                    "set_error_state(message: str)"
+                  ],
+                  "states": {
+                    "disabled": "No changes",
+                    "enabled": "X changes pending",
+                    "saving": "Saving... (with spinner)",
+                    "success": "Changes saved ✓",
+                    "error": "Save failed ✗"
+                  }
+                },
+                "core/file_writer.py": {
+                  "class": "ConfigurationWriter",
+                  "methods": [
+                    "write_json_preserving_structure(data: ConfigData, original_file: Path, output_file: Path)",
+                    "write_ini_preserving_structure(data: ConfigData, original_file: Path, output_file: Path)",
+                    "create_backup(filepath: Path) -> Path",
+                    "restore_from_backup(backup_path: Path)"
+                  ],
+                  "strategies": {
+                    "json_writing": "Line-by-line reconstruction",
+                    "ini_writing": "Section-aware writing",
+                    "comment_preservation": "Track line associations",
+                    "atomic_writes": "Write to temp, then rename"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "phase_4": {
+        "name": "Advanced Features and Polish",
+        "description": "Add convenience features and polish the user experience",
+        "tasks": [
+          {
+            "task_id": "4.1",
+            "name": "Configuration Import/Export",
+            "user_perspective": {
+              "description": "I can export my configurations to share with friends or import configurations others have shared with me",
+              "scenario": "User right-clicks on 'Endurance Setup' and selects 'Export'. A save dialog lets them save a .lmuconfig file. They send it to a teammate who uses 'Import Configuration' to add it to their setup list",
+              "acceptance_criteria": [
+                "Export creates portable file",
+                "Import validates file format",
+                "Name conflicts handled on import",
+                "Progress shown for import",
+                "Success/error messages clear",
+                "Maintains all settings and descriptions"
+              ]
+            },
+            "functional_specification": {
+              "description": "Enable sharing configurations through import/export functionality",
+              "requirements": [
+                "Export packages both JSON and INI files",
+                "Custom file format (.lmuconfig)",
+                "Compression for smaller files",
+                "Metadata includes version info",
+                "Import validates compatibility",
+                "Handle naming conflicts"
+              ],
+              "file_format": {
+                "extension": ".lmuconfig",
+                "structure": "ZIP archive containing JSON, INI, and metadata",
+                "metadata": "Version, export date, game version, description"
+              }
+            },
+            "technical_specification": {
+              "modules": {
+                "core/import_export.py": {
+                  "class": "ConfigurationPorter",
+                  "methods": [
+                    "export_configuration(name: str, filepath: Path) -> bool",
+                    "import_configuration(filepath: Path) -> Tuple[bool, str]",
+                    "validate_import_file(filepath: Path) -> ValidationResult",
+                    "handle_name_conflict(suggested_name: str) -> str"
+                  ],
+                  "archive_structure": {
+                    "settings.json": "Main settings file",
+                    "config_dx11.ini": "Graphics settings",
+                    "metadata.json": "Export information",
+                    "description.txt": "Optional description"
+                  }
+                },
+                "ui/dialogs/import_dialog.py": {
+                  "class": "ImportConfigurationDialog(QDialog)",
+                  "features": [
+                    "Preview configuration before import",
+                    "Rename on import if needed",
+                    "Show configuration details",
+                    "Conflict resolution options"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "task_id": "4.2",
+            "name": "Keyboard Shortcuts",
+            "user_perspective": {
+              "description": "I can use keyboard shortcuts to quickly access common functions without using the mouse",
+              "scenario": "User presses Ctrl+S to save current configuration, Ctrl+F to focus search, F3 to find next search result, Ctrl+Tab to switch between category tabs",
+              "acceptance_criteria": [
+                "All major functions have shortcuts",
+                "Shortcuts shown in tooltips",
+                "Standard conventions followed",
+                "Customizable shortcuts (future)",
+                "No conflicts with system shortcuts",
+                "Shortcuts work from any focus state"
+              ]
+            },
+            "functional_specification": {
+              "description": "Implement comprehensive keyboard navigation and shortcuts",
+              "requirements": [
+                "Global shortcuts for major actions",
+                "Tab navigation with keyboard",
+                "Field navigation with arrow keys",
+                "Search navigation shortcuts",
+                "Menu mnemonics",
+                "Accessibility compliance"
+              ],
+              "shortcut_map": {
+                "Ctrl+S": "Save configuration",
+                "Ctrl+O": "Load configuration",
+                "Ctrl+F": "Focus search",
+                "F3/Shift+F3": "Next/Previous search result",
+                "Ctrl+Tab": "Next category tab",
+                "Ctrl+Enter": "Apply changes",
+                "Escape": "Clear search/Close dialog"
+              }
+            },
+            "technical_specification": {
+              "modules": {
+                "ui/shortcuts/shortcut_manager.py": {
+                  "class": "ShortcutManager",
+                  "methods": [
+                    "register_shortcuts(window: QMainWindow)",
+                    "create_action(name: str, shortcut: str, callback: Callable)",
+                    "update_tooltips_with_shortcuts()"
+                  ],
+                  "implementation": "QAction with QKeySequence"
+                },
+                "ui/behaviors/keyboard_navigation.py": {
+                  "class": "KeyboardNavigationMixin",
+                  "methods": [
+                    "handle_tab_navigation(event: QKeyEvent)",
+                    "handle_field_navigation(event: QKeyEvent)",
+                    "focus_next_modified_field()"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "task_id": "4.3",
+            "name": "Error Handling and Recovery",
+            "user_perspective": {
+              "description": "When something goes wrong, I see helpful error messages that explain what happened and how to fix it",
+              "scenario": "Game is running when user tries to apply changes. Error dialog appears: 'Cannot save configuration files. Please close Le Mans Ultimate and try again.' with 'Retry' and 'Cancel' buttons",
+              "acceptance_criteria": [
+                "Errors show clear explanations",
+                "Suggested solutions provided",
+                "Retry options where appropriate",
+                "No technical jargon",
+                "Errors logged for debugging",
+                "Recovery without data loss"
+              ]
+            },
+            "functional_specification": {
+              "description": "Comprehensive error handling with user-friendly messages and recovery options",
+              "requirements": [
+                "Categorized error types",
+                "Context-specific error messages",
+                "Actionable recovery suggestions",
+                "Automatic recovery where possible",
+                "Error logging for support",
+                "Graceful degradation"
+              ],
+              "error_categories": {
+                "file_access": "Permission and lock issues",
+                "parsing": "Corrupted configuration files",
+                "validation": "Invalid user input",
+                "system": "OS-level failures",
+                "game_state": "Game running or files missing"
+              }
+            },
+            "technical_specification": {
+              "modules": {
+                "core/error_handler.py": {
+                  "class": "ErrorHandler",
+                  "methods": [
+                    "handle_error(error: Exception, context: ErrorContext) -> ErrorResponse",
+                    "get_user_message(error_type: ErrorType) -> str",
+                    "get_recovery_options(error_type: ErrorType) -> List[RecoveryOption]",
+                    "log_error(error: Exception, context: ErrorContext)"
+                  ],
+                  "error_mapping": {
+                    "PermissionError": "File access denied message",
+                    "FileNotFoundError": "Missing file recovery",
+                    "JSONDecodeError": "Corrupted file handling",
+                    "WindowsError(32)": "File in use by another process"
+                  }
+                },
+                "ui/dialogs/error_dialog.py": {
+                  "class": "ErrorDialog(QMessageBox)",
+                  "features": [
+                    "Icon based on severity",
+                    "Detailed message expansion",
+                    "Recovery action buttons",
+                    "Copy error details option"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "task_id": "4.4",
+            "name": "Performance Optimization",
+            "user_perspective": {
+              "description": "The application feels fast and responsive even with hundreds of settings loaded",
+              "scenario": "User opens app, it loads instantly. Searching is immediate. Switching tabs has no delay. Saving configurations completes in under a second",
+              "acceptance_criteria": [
+                "Startup time under 2 seconds",
+                "Instant search results",
+                "No UI freezing",
+                "Smooth scrolling",
+                "Fast configuration switching",
+                "Minimal memory usage"
+              ]
+            },
+            "functional_specification": {
+              "description": "Optimize application performance for smooth user experience",
+              "requirements": [
+                "Lazy loading of UI components",
+                "Efficient search indexing",
+                "Debounced input handling",
+                "Virtual scrolling for long lists",
+                "Background file operations",
+                "Memory-efficient data structures"
+              ],
+              "performance_targets": {
+                "startup": "< 2 seconds",
+                "search": "< 100ms for results",
+                "tab_switch": "< 50ms",
+                "save_operation": "< 1 second",
+                "memory": "< 100MB RAM"
+              }
+            },
+            "technical_specification": {
+              "modules": {
+                "core/optimizations/lazy_loader.py": {
+                  "class": "LazyLoader",
+                  "methods": [
+                    "load_category_on_demand(category: str)",
+                    "preload_visible_widgets()",
+                    "unload_hidden_widgets()"
+                  ],
+                  "strategies": [
+                    "Load only active tab content",
+                    "Defer description rendering",
+                    "Widget recycling for large lists"
+                  ]
+                },
+                "core/optimizations/search_indexer.py": {
+                  "class": "SearchIndexer",
+                  "methods": [
+                    "build_index(data: ConfigData) -> SearchIndex",
+                    "update_index_incremental(changes: List[str])",
+                    "search_with_index(query: str) -> List[str]"
+                  ],
+                  "optimizations": [
+                    "Pre-built search index",
+                    "Trie data structure for prefixes",
+                    "Cache frequent searches"
+                  ]
+                },
+                "ui/optimizations/virtual_scroll.py": {
+                  "class": "VirtualScrollArea(QScrollArea)",
+                  "features": [
+                    "Render only visible widgets",
+                    "Recycle widget instances",
+                    "Smooth scroll performance"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "development_guidelines": {
+      "code_standards": {
+        "naming_conventions": {
+          "classes": "PascalCase",
+          "methods": "snake_case",
+          "constants": "UPPER_SNAKE_CASE",
+          "private": "_leading_underscore"
+        },
+        "documentation": {
+          "docstrings": "Google style",
+          "type_hints": "Required for all methods",
+          "comments": "Explain why, not what"
+        }
+      },
+      "testing_requirements": {
+        "unit_tests": "Minimum 80% coverage",
+        "integration_tests": "Key user workflows",
+        "ui_tests": "Critical paths only",
+        "performance_tests": "Startup and search"
+      },
+      "quality_assurance": {
+        "code_review": "All PRs require review",
+        "linting": "Black + PyLint",
+        "type_checking": "mypy strict mode",
+        "security": "No elevated privileges required"
+      }
+    }
+  }
