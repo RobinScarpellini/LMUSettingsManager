@@ -134,9 +134,7 @@ class JsonWithCommentsParser:
         for i, line in enumerate(lines):
             line = line.strip()
 
-            # Look for comment patterns with descriptions
-            # Format: "Field Name": value,  // Description text #: "This is what the setting does"
-            # Also support: "Field Name#": "Description text"
+            # Parse inline comments and standalone description fields
 
             if "//" in line and "#" in line:
                 # Extract field name from the line
@@ -181,9 +179,6 @@ class JsonWithCommentsParser:
                         .replace("\\\\", "\\")
                     )
                     descriptions[field_name] = description
-                    self.logger.debug(
-                        f"Found standalone description for '{field_name}': {description} (raw: {description_raw})"
-                    )
 
         return descriptions
 

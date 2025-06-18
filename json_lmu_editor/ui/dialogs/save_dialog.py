@@ -15,7 +15,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QTextEdit,
     QGroupBox,
     QMessageBox,
 )
@@ -96,18 +95,6 @@ class SaveConfigurationDialog(QDialog):
 
         layout.addWidget(name_group)
 
-        # Description group - REMOVED
-        # desc_group = QGroupBox("Description (Optional)")
-        # desc_layout = QVBoxLayout(desc_group)
-        #
-        # self.description_input = QTextEdit()
-        # self.description_input.setPlaceholderText(
-        #     "Enter a description for this configuration (e.g., 'Wet weather setup with reduced AI difficulty')"
-        # )
-        # self.description_input.setMaximumHeight(100)
-        # desc_layout.addWidget(self.description_input)
-        #
-        # layout.addWidget(desc_group)
 
         layout.addStretch(1) # Add stretch to push buttons to bottom if space allows
 
@@ -233,7 +220,6 @@ class SaveConfigurationDialog(QDialog):
 
         # Store results
         self.configuration_name = name
-        # self.configuration_description = self.description_input.toPlainText().strip() # Removed
 
         # Accept dialog
         self.accept()

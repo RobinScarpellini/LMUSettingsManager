@@ -19,8 +19,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
-from PyQt6.QtGui import QFont, QIcon, QDesktopServices # Added QDesktopServices
-from PyQt6.QtCore import QUrl # Added QUrl
+from PyQt6.QtGui import QFont, QIcon # Added QDesktopServices
 
 from .apply_button import ApplyChangesButton
 from .search_widget import SearchWidget # Added SearchWidget import
@@ -266,17 +265,10 @@ class ConfigurationPanel(QWidget):
         elif config_identifier == "Example Configuration":
              self.current_info_label.setText(f"<b>Active:</b> {config_identifier}")
         else:
-            self.current_info_label.setText(f"<b>Active Game Files</b>") # Simpler title
+            self.current_info_label.setText("<b>Active Game Files</b>") # Simpler title
             self.location_label.setText(f"Location: {config_identifier}")
 
 
-        # The ApplyChangesButton itself shows the change count, so self.changes_label is removed.
-        # if change_count > 0:
-        #     self.changes_label.setText(f"{change_count} pending changes")
-        #     self.changes_label.setStyleSheet("color: orange; font-weight: bold;")
-        # else:
-        #     self.changes_label.setText("No pending changes")
-        #     self.changes_label.setStyleSheet("color: #666;")
 
     def populate_saved_configurations(self, configurations: List[str]) -> None:
         """

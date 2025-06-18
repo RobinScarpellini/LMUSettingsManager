@@ -46,8 +46,6 @@ def test_with_example_files() -> bool:
     print("\n=== Testing with Example Files ===")
 
     try:
-        # Ensure logging is set up for this test function if it's called directly
-        # setup_logging() # Already called in run_test_mode, but good to be mindful
         from json_lmu_editor.core.parsers.json_parser import (
             JsonWithCommentsParser,
             FieldType,
@@ -313,9 +311,6 @@ def run_test_mode() -> int:
     try:
         from json_lmu_editor.core.game_detector import GameDetector
         from json_lmu_editor.utils.settings_manager import SettingsManager
-        # from json_lmu_editor.core.parsers.json_parser import JsonWithCommentsParser # F401 Unused
-        # from json_lmu_editor.core.parsers.ini_parser import IniParser # F401 Unused
-        # from json_lmu_editor.core.models.configuration_model import ConfigurationModel # F401 Unused
 
         print("[PASS] All Phase 1 components imported successfully")
 

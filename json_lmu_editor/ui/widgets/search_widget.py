@@ -48,7 +48,7 @@ class SearchWidget(QWidget):
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
 
-        # Row 1: Label and Navigation
+        # Row 1: Label and Navigation buttons (moved to right side)
         row1_layout = QHBoxLayout()
         
         search_label = QLabel("Search")
@@ -71,11 +71,6 @@ class SearchWidget(QWidget):
         self.next_button.setToolTip("Next result (F3)")
         self.next_button.setFixedSize(28, 28)
         row1_layout.addWidget(self.next_button)
-        
-        self.result_label = QLabel("")
-        self.result_label.setMinimumWidth(80)
-        self.result_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        row1_layout.addWidget(self.result_label, 1) # Result label takes minimal necessary space
 
         main_layout.addLayout(row1_layout)
 
@@ -85,7 +80,7 @@ class SearchWidget(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Type to search setting names...")
         # self.search_input.setClearButtonEnabled(True) # Standard clear button removed, using custom
-        self.search_input.setMaximumHeight(30)
+        self.search_input.setMaximumHeight(35)
         row2_layout.addWidget(self.search_input, 1) # Stretch factor
 
         self.clear_button = QPushButton("✕") # Using a cross character
@@ -95,6 +90,16 @@ class SearchWidget(QWidget):
         row2_layout.addWidget(self.clear_button)
         
         main_layout.addLayout(row2_layout)
+        
+        # Row 3: Result count text (moved under the textfield)
+        row3_layout = QHBoxLayout()
+        
+        self.result_label = QLabel("")
+        self.result_label.setMinimumWidth(80)
+        self.result_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        row3_layout.addWidget(self.result_label, 1)
+        
+        main_layout.addLayout(row3_layout)
         
         # Remove fixed height for the entire widget, let it size by content
         # self.setFixedHeight(40)

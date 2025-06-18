@@ -353,7 +353,6 @@ class SearchIndexer:
             SearchResult or None
         """
         field_name = field_data["name"]
-        description = field_data["description"]
         value = field_data["value"]
         category = field_data["category"]
 
@@ -377,13 +376,6 @@ class SearchIndexer:
             # Match at beginning gets higher score
             if name_lower.startswith(query):
                 relevance_score = 200.0
-
-        # Check description match (medium relevance)
-        elif description and any(term in description.lower() for term in search_terms):
-            match_type = "description"
-            relevance_score = 75.0
-            matched_text = description
-            context = f"Description: {description[:100]}..."
 
         # Check value match (lower relevance)
         elif value and any(term in value.lower() for term in search_terms):

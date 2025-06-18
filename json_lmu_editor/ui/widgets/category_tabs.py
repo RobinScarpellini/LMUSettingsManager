@@ -132,7 +132,7 @@ class MultiRowTabWidget(QWidget):
             self.logger.debug(f"Selected widget for tab {index} ('{self.tab_buttons[index].text() if index < len(self.tab_buttons) else 'N/A'}'). Current parent: {selected_widget.parent()}")
 
             if selected_widget.parent() != self.content_area:
-                self.logger.debug(f"  Setting parent of selected_widget to content_area.")
+                self.logger.debug("  Setting parent of selected_widget to content_area.")
                 selected_widget.setParent(self.content_area) # Ensure parent is correct before adding
             
             # Ensure it's not already in some other layout or a child of a different visible widget
@@ -618,17 +618,18 @@ class CategoryTabWidget(MultiRowTabWidget):
         )
         # Log the main QVBoxLayout for the Misc tab
         if self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug(f"--- CategoryTabs Misc Tab Main Layout Debug ---")
+            self.logger.debug("--- CategoryTabs Misc Tab Main Layout Debug ---")
             self.logger.debug(f"  MiscMainLayout: type={type(main_misc_layout)}")
             cm = main_misc_layout.contentsMargins()
             self.logger.debug(f"    contentsMargins=(L:{cm.left()}, T:{cm.top()}, R:{cm.right()}, B:{cm.bottom()})")
             self.logger.debug(f"    spacing={main_misc_layout.spacing()}")
-            self.logger.debug(f"--- End Misc Tab Main Layout Debug ---")
+            self.logger.debug("--- End Misc Tab Main Layout Debug ---")
 
             # Iterate through items in main_misc_layout to find and log sub-QGridLayouts
             for i in range(main_misc_layout.count()):
                 item = main_misc_layout.itemAt(i)
-                if item is None: continue
+                if item is None:
+                    continue
                 
                 # Check if the item is a layout itself (QGridLayouts are added as sub-layouts)
                 sub_layout = item.layout()
@@ -1044,7 +1045,8 @@ class CategoryTabWidget(MultiRowTabWidget):
         self.logger.debug(f"  Logging details for up to {items_to_log} child items in '{layout_name}':")
         for i in range(grid_layout.count()): # Iterate all to find widgets, but log details for first few
             item = grid_layout.itemAt(i)
-            if item is None: continue
+            if item is None:
+                continue
             
             widget = item.widget()
             if widget and isinstance(widget, FieldWidget):

@@ -8,8 +8,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QDialogButtonBox,
-    QSizePolicy,
     QWidget,
     QFrame
 )

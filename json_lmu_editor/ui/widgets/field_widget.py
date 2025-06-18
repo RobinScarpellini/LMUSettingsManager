@@ -141,11 +141,6 @@ class FieldWidget(QWidget):
         self.revert_button.setSizePolicy(sp) # Keep space when hidden
         # self.revert_button.setStyleSheet("margin-right: 5px;") # Adjusted margin for new position
 
-        # Modified indicator (Item 3.1: Orange dot removed)
-        # self.modified_indicator = QLabel("●")
-        # self.modified_indicator.setStyleSheet("color: orange; font-size: 14px; margin-left: 3px;")
-        # self.modified_indicator.setVisible(False)
-        # self.modified_indicator.setToolTip("Field has been modified")
         self.modified_indicator = None  # Explicitly set to None
 
         if isinstance(self.input_widget, QTextEdit):
@@ -186,7 +181,7 @@ class FieldWidget(QWidget):
                 if isinstance(
                     self.input_widget, QLineEdit
                 ):  # Item 2: Only QLineEdit gets fixed width
-                    self.input_widget.setFixedWidth(120) # Reduced width
+                    self.input_widget.setFixedWidth(160) # Increased width
                 # elif isinstance(self.input_widget, QCheckBox): # Item 2: QCheckBox sizes naturally
                 # self.input_widget.setFixedWidth(200) # Removed
                 
@@ -196,9 +191,6 @@ class FieldWidget(QWidget):
                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
                 )
             
-            # Removed content_layout.addStretch(1) at the end
-            # Removed controls_layout as modified_indicator is removed and revert_button is relocated
-            # content_layout.addLayout(controls_layout)
             layout.addLayout(content_layout)
 
         # Description label
@@ -209,10 +201,6 @@ class FieldWidget(QWidget):
             "color: #555; font-size: 11px; padding: 1px;" # Reduced padding to 1px
         )
         self.description_label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        # Ensure the label is always part of the layout.
-        # If description is empty, the QLabel will be empty but its padding (from stylesheet)
-        # should provide the necessary spacing.
-        # No need to call setVisible(False) here.
 
         layout.addWidget(self.description_label)
 
@@ -225,9 +213,6 @@ class FieldWidget(QWidget):
         separator.setStyleSheet("color: #ddd;")
         separator.setFixedHeight(1) # Ensure it's thin
         layout.addWidget(separator)
-
-        # Removed stretch from the bottom. The widget will now be its natural height.
-        # Parent layout will handle alignment and spacing between FieldWidgets.
 
         # Store original style for highlighting
         self.original_style = self.styleSheet()
@@ -243,7 +228,7 @@ class FieldWidget(QWidget):
         if not self.logger.isEnabledFor(logging.DEBUG):
             return
 
-        self.logger.debug(f"--- FieldWidget Debug: {self.field_path} ---")
+        # self.logger.debug(f"--- FieldWidget Debug: {self.field_path} ---")
         
         # Main layout
         main_layout = self.layout()
@@ -256,13 +241,6 @@ class FieldWidget(QWidget):
             self.logger.debug("  MainLayout: None")
 
         self.logger.debug(f"  FieldWidget: sizeHint={self.sizeHint()}, minimumSizeHint={self.minimumSizeHint()}")
-        # Actual geometry is often (0,0,0,0) or incorrect if logged before widget is shown.
-        # if self.isVisible():
-        #      self.logger.debug(f"  FieldWidget: geometry={self.geometry()}, size={self.size()}")
-        # else:
-        #      self.logger.debug(f"  FieldWidget: Not (yet) visible, geometry/size might be inaccurate.")
-
-
         # Name Label
         if self.name_label:
             self.logger.debug(f"  NameLabel: text='{self.name_label.text()}'")
@@ -291,16 +269,15 @@ class FieldWidget(QWidget):
 
         # Separator - usually a QFrame, height is key
         if main_layout:
-            found_separator = False
             for i in range(main_layout.count()):
                 item = main_layout.itemAt(i)
-                if item is None: continue
+                if item is None:
+                    continue
                 
                 widget = item.widget()
                 if widget and isinstance(widget, QFrame) and widget.frameShape() == QFrame.Shape.HLine:
                     self.logger.debug(f"  Separator (QFrame): sizeHint={widget.sizeHint()}, minimumSizeHint={widget.minimumSizeHint()}")
                     self.logger.debug(f"    styleSheet='{widget.styleSheet()}'")
-                    found_separator = True
                     break
                 # Also check for QSpacerItem if layout.addSpacing was used
                 spacer = item.spacerItem()
@@ -316,7 +293,7 @@ class FieldWidget(QWidget):
                      self.logger.debug(f"  Explicit Spacer (before separator): sizeHint={item_before_last.spacerItem().sizeHint()}, isEmpty={item_before_last.spacerItem().isEmpty()}")
 
 
-        self.logger.debug(f"--- End FieldWidget Debug: {self.field_path} ---")
+        # self.logger.debug(f"--- End FieldWidget Debug: {self.field_path} ---")
 
     def create_input_widget(self) -> Optional[QWidget]:
         """

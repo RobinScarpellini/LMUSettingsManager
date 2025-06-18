@@ -41,8 +41,10 @@ from .shortcuts.shortcut_manager import ShortcutManager
 from ..core.error_handler import ErrorHandler, ErrorContext
 from .dialogs.error_dialog import ErrorDialog
 from .dialogs.startup_info_dialog import StartupInfoDialog # Added import
+from .dialogs.profile_sync_dialog import ProfileSyncDialog, ProfileSyncChoice
 from ..core.optimizations.search_indexer import SearchIndexer
 from ..core.optimizations.lazy_loader import LazyLoader
+from ..core.profile_manager import ProfileManager
 
 
 class MainWindow(QMainWindow):
@@ -71,6 +73,7 @@ class MainWindow(QMainWindow):
         self.config_manager: Optional[ConfigurationManager] = None
         self.comparison_engine = ComparisonEngine()
         self.config_porter = ConfigurationPorter()
+        self.profile_manager = ProfileManager()
 
         # UI components
         self.central_widget: Optional[QWidget] = None
@@ -481,17 +484,17 @@ class MainWindow(QMainWindow):
 
             # Load configuration
             if self.config_model.load_configuration(json_file, ini_file):
-                # Initialize configuration manager if not using example files
-                if not is_example:
-                    config_dir = json_file.parent
-                    self.config_manager = ConfigurationManager(config_dir)
+                # Initialize configuration manager if not using example files (DISABLED - using ProfileManager instead)
+                # if not is_example:
+                #     config_dir = json_file.parent
+                #     self.config_manager = ConfigurationManager(config_dir)
 
                 # Update UI
                 self.populate_categories()
                 self.update_apply_button()
 
                 if not is_example:
-                    self.update_saved_configurations()
+                    self.update_saved_profiles()
 
                 # Update status
                 field_count = len(self.config_model.field_states)
@@ -544,6 +547,11 @@ class MainWindow(QMainWindow):
                 self.logger.info(
                     f"Successfully loaded configuration from {json_file} and {ini_file}"
                 )
+                
+                # Check profile synchronization (only for actual game files, not examples)
+                if not is_example:
+                    self.check_profile_sync(json_file, ini_file)
+                
                 # Determine game_path_used for the dialog
                 game_path_used = None
                 if not is_example and self.config_model.json_file_path:
@@ -708,12 +716,13 @@ class MainWindow(QMainWindow):
             self.category_tabs.highlight_search_results(results)
 
         # Update search widget with results
-        if self.search_widget:
-            self.search_widget.update_search_results(results)
+        search_widget = self.config_panel.search_widget if self.config_panel else None
+        if search_widget:
+            search_widget.update_search_results(results)
             # Sync navigation position with category tabs
             if self.category_tabs and results:
                 current, total = self.category_tabs.get_current_search_position()
-                self.search_widget.current_index = current - 1 if current > 0 else 0
+                search_widget.current_index = current - 1 if current > 0 else 0
 
         # Update status
         # self.status_label.setText(f"Search: {len(results)} results for '{query}'") # REMOVED status_label
@@ -738,15 +747,17 @@ class MainWindow(QMainWindow):
         else:
             success = self.category_tabs.navigate_to_previous_result()
 
-        if success and self.search_widget:
+        search_widget = self.config_panel.search_widget if self.config_panel else None
+        if success and search_widget:
             # Update search widget with current position
             current, total = self.category_tabs.get_current_search_position()
             if total > 0:
-                self.search_widget.current_index = current - 1
-                self.search_widget.current_results = (
+                search_widget.current_index = current - 1
+                search_widget.current_results = (
                     self.category_tabs.highlighted_fields
                 )
-                self.search_widget.update_navigation_buttons(True)
+                search_widget.update_result_counter()
+                search_widget.update_navigation_buttons(True)
 
     def clear_search(self) -> None:
         """Clear search results."""
@@ -846,6 +857,9 @@ class MainWindow(QMainWindow):
                 # self.status_label.setText("Changes applied successfully") # REMOVED status_label
                 self.logger.info("Changes applied successfully")  # Log instead
                 self.changes_applied.emit()
+                
+                # Update active profile if one exists
+                self.update_active_profile_after_changes()
 
                 # Reset button state after delay
                 QTimer.singleShot(2000, self.update_apply_button)
@@ -901,30 +915,30 @@ class MainWindow(QMainWindow):
             # self.status_label.setText(f"Reverted {reverted_count} changes") # REMOVED status_label
             self.logger.info(f"Reverted {reverted_count} changes")  # Log instead
 
-    def update_saved_configurations(self) -> None:
-        """Update the list of saved configurations in the panel."""
-        if not self.config_manager or not self.config_panel:
+    def update_saved_profiles(self) -> None:
+        """Update the list of saved profiles in the panel."""
+        if not self.config_panel:
             return
 
         try:
-            saved_configs = self.config_manager.get_saved_configurations()
-            self.config_panel.populate_saved_configurations(saved_configs)
+            saved_profiles = self.profile_manager.list_profiles()
+            self.config_panel.populate_saved_configurations(saved_profiles)
         except Exception as e:
-            self.logger.error(f"Error updating saved configurations: {e}")
+            self.logger.error(f"Error updating saved profiles: {e}")
 
     def save_configuration(self) -> None:
-        """Save current configuration with custom name."""
-        if not self.config_manager:
+        """Save current configuration as a profile."""
+        if not self.config_model.json_file_path or not self.config_model.ini_file_path:
             QMessageBox.warning(
                 self,
-                "No Configuration Manager",
-                "Configuration manager not initialized. Please load a game configuration first.",
+                "No Configuration Loaded",
+                "No configuration files are currently loaded. Please load a game configuration first.",
             )
             return
 
         try:
-            # Get existing configurations
-            existing_configs = self.config_manager.get_saved_configurations()
+            # Get existing profiles
+            existing_configs = self.profile_manager.list_profiles()
 
             # Show save dialog
             dialog = SaveConfigurationDialog(existing_configs, self)
@@ -933,20 +947,35 @@ class MainWindow(QMainWindow):
                 # config_description = dialog.get_configuration_description() # Description removed
 
                 if config_name:
-                    # Save configuration
-                    if self.config_manager.save_configuration(
-                        config_name, self.config_model
-                    ):
-                        # self.status_label.setText(f"Saved configuration: {config_name}") # REMOVED status_label
-                        self.logger.info(
-                            f"Saved configuration: {config_name}"
-                        )  # Log instead
-                        self.update_saved_configurations()
+                    # Save profile
+                    json_file = self.config_model.json_file_path
+                    ini_file = self.config_model.ini_file_path
+                    
+                    if self.profile_manager.create_profile(config_name, json_file, ini_file):
+                        # Set as active profile
+                        self.profile_manager.set_active_profile(config_name)
+                        
+                        self.logger.info(f"Saved profile: {config_name}")
+                        self.update_saved_profiles()
+                        
+                        # Update UI to show the new active profile
+                        if self.config_panel:
+                            self.current_loaded_config_name = config_name
+                            self.current_loaded_config_is_profile = True
+                            self.config_panel.update_current_info(
+                                config_name, self.config_model.change_count, is_profile=True
+                            )
+                        
+                        QMessageBox.information(
+                            self,
+                            "Profile Saved",
+                            f"Profile '{config_name}' has been saved and set as active."
+                        )
                     else:
                         QMessageBox.critical(
                             self,
                             "Save Failed",
-                            f"Failed to save configuration '{config_name}'",
+                            f"Failed to save profile '{config_name}'",
                         )
         except Exception as e:
             QMessageBox.critical(
@@ -955,13 +984,11 @@ class MainWindow(QMainWindow):
 
     def load_configuration_from_panel(self, config_name: str) -> None:
         """
-        Load a saved configuration.
+        Load a saved profile.
 
         Args:
-            config_name: Name of configuration to load
+            config_name: Name of profile to load
         """
-        if not self.config_manager:
-            return
 
         # Check for unsaved changes
         if self.config_model.has_changes:
@@ -969,7 +996,7 @@ class MainWindow(QMainWindow):
                 self,
                 "Unsaved Changes",
                 f"You have {self.config_model.change_count} unsaved changes.\n\n"
-                "Loading a different configuration will discard them.\n"
+                "Loading a different profile will discard them.\n"
                 "Do you want to continue?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
@@ -978,24 +1005,28 @@ class MainWindow(QMainWindow):
                 return
 
         try:
-            # Load configuration
-            success, error_msg = self.config_manager.load_configuration(config_name)
+            # Load profile to current game files
+            if not self.config_model.json_file_path or not self.config_model.ini_file_path:
+                QMessageBox.warning(
+                    self,
+                    "No Configuration Loaded",
+                    "No game configuration is currently loaded. Please load a game first."
+                )
+                return
+                
+            json_file = self.config_model.json_file_path
+            ini_file = self.config_model.ini_file_path
+            
+            success = self.profile_manager.load_profile(config_name, json_file, ini_file)
 
             if success:
-                # Reload the configuration model
-                config_dir = self.config_manager.config_dir
-                json_file = config_dir / "settings.json"
-                ini_file = config_dir / "Config_DX11.ini"
-
+                # Reload the configuration model with updated files
                 if self.config_model.load_configuration(json_file, ini_file):
                     # Update UI
                     self.populate_categories()
                     self.update_apply_button()
 
-                    # self.status_label.setText(f"Loaded configuration: {config_name}") # REMOVED status_label
-                    self.logger.info(
-                        f"Loaded configuration: {config_name}"
-                    )  # Log instead
+                    self.logger.info(f"Loaded profile: {config_name}")
 
                     # Update configuration panel
                     if self.config_panel:
@@ -1004,17 +1035,23 @@ class MainWindow(QMainWindow):
                         self.config_panel.update_current_info(
                             config_name, self.config_model.change_count, is_profile=True
                         )
+                        
+                    QMessageBox.information(
+                        self,
+                        "Profile Loaded",
+                        f"Profile '{config_name}' has been loaded and set as active."
+                    )
                 else:
                     QMessageBox.critical(
                         self,
                         "Load Error",
-                        f"Failed to reload configuration model after loading '{config_name}'",
+                        f"Failed to reload configuration model after loading profile '{config_name}'",
                     )
             else:
                 QMessageBox.critical(
                     self,
                     "Load Failed",
-                    f"Failed to load configuration '{config_name}':\n\n{error_msg}",
+                    f"Failed to load profile '{config_name}'",
                 )
 
         except Exception as e:
@@ -1060,19 +1097,21 @@ class MainWindow(QMainWindow):
             current_data = {}
             selected_data = {}
 
-            # Add JSON fields
-            if self.config_model.json_config:
-                current_data.update(self.config_model.json_config.fields)
+            # Build current data with current values (including modifications)
+            for field_path in self.config_model.field_states.keys():
+                field_info = self.config_model.get_field_info(field_path)
+                if field_info:
+                    # Create a copy of field_info with current value
+                    from copy import copy
+                    current_field_info = copy(field_info)
+                    current_field_info.value = self.config_model.get_field_value(field_path)
+                    current_data[field_path] = current_field_info
+
+            # Add selected configuration JSON fields
             if selected_json:
                 selected_data.update(selected_json.fields)
 
-            # Add INI fields (with prefix)
-            if self.config_model.ini_config:
-                for (
-                    field_path,
-                    field_info,
-                ) in self.config_model.ini_config.fields.items():
-                    current_data[f"ini.{field_path}"] = field_info
+            # Add selected configuration INI fields (with prefix)
             if selected_ini:
                 for field_path, field_info in selected_ini.fields.items():
                     selected_data[f"ini.{field_path}"] = field_info
@@ -1577,6 +1616,93 @@ class MainWindow(QMainWindow):
         dialog = StartupInfoDialog(json_path, ini_path, game_path_used, is_example, self)
         dialog.browse_requested.connect(self.browse_for_game)
         dialog.exec()
+
+    def check_profile_sync(self, json_file: Path, ini_file: Path) -> None:
+        """
+        Check if current settings match the active profile and handle conflicts.
+        
+        Args:
+            json_file: Current settings.json file
+            ini_file: Current Config_DX11.ini file
+        """
+        try:
+            files_match, active_profile, differences = self.profile_manager.compare_with_active_profile(
+                json_file, ini_file
+            )
+            
+            if not files_match and active_profile and differences:
+                self.logger.info(f"Profile sync conflict detected with profile '{active_profile}': {differences}")
+                
+                # Show sync dialog
+                choice = ProfileSyncDialog.show_sync_dialog(active_profile, differences, self)
+                
+                if choice == ProfileSyncChoice.UPDATE_PROFILE:
+                    # Update profile with current settings
+                    if self.profile_manager.update_profile(active_profile, json_file, ini_file):
+                        self.logger.info(f"Profile '{active_profile}' updated with current settings")
+                        QMessageBox.information(
+                            self,
+                            "Profile Updated",
+                            f"Profile '{active_profile}' has been updated with your current settings."
+                        )
+                    else:
+                        QMessageBox.warning(
+                            self,
+                            "Update Failed",
+                            f"Failed to update profile '{active_profile}'. Please check the logs."
+                        )
+                
+                elif choice == ProfileSyncChoice.UPDATE_SETTINGS:
+                    # Update settings with profile
+                    if self.profile_manager.load_profile(active_profile, json_file, ini_file):
+                        self.logger.info(f"Settings updated with profile '{active_profile}'")
+                        # Reload the configuration to reflect changes
+                        self.reload_configuration()
+                        QMessageBox.information(
+                            self,
+                            "Settings Updated",
+                            f"Your settings have been updated with profile '{active_profile}'."
+                        )
+                    else:
+                        QMessageBox.warning(
+                            self,
+                            "Update Failed",
+                            f"Failed to load profile '{active_profile}'. Please check the logs."
+                        )
+                
+                elif choice == ProfileSyncChoice.IGNORE:
+                    # Clear active profile to avoid repeated conflicts
+                    self.profile_manager.clear_active_profile()
+                    self.logger.info("Profile sync conflict ignored, active profile cleared")
+                
+                # If user cancelled, do nothing
+            
+        except Exception as e:
+            self.logger.error(f"Error during profile sync check: {e}")
+
+    def update_active_profile_after_changes(self) -> None:
+        """Update the active profile after changes are applied to game files."""
+        try:
+            active_profile = self.profile_manager.get_active_profile()
+            if not active_profile:
+                return  # No active profile, nothing to update
+            
+            # Get current game file paths
+            if not self.config_model.json_file_path or not self.config_model.ini_file_path:
+                self.logger.warning("Cannot update active profile: game file paths not available")
+                return
+            
+            json_file = self.config_model.json_file_path
+            ini_file = self.config_model.ini_file_path
+            
+            # Update the profile with current settings
+            if self.profile_manager.update_profile(active_profile, json_file, ini_file):
+                self.logger.info(f"Active profile '{active_profile}' updated automatically after applying changes")
+            else:
+                self.logger.error(f"Failed to update active profile '{active_profile}' after applying changes")
+                
+        except Exception as e:
+            self.logger.error(f"Error updating active profile after changes: {e}")
 
 def run_application() -> int:
     """

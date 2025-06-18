@@ -338,8 +338,7 @@ class LazyLoader(QObject):
 
     def _preload_next_components(self) -> None:
         """Preload components that are likely to be needed next."""
-        # This is a placeholder for more sophisticated preloading logic
-        # Could be based on user behavior patterns, tab order, etc.
+        # TODO: Implement smart preloading based on user behavior patterns
         pass
 
     def _unload_category_if_appropriate(self, category: str) -> None:
@@ -349,9 +348,7 @@ class LazyLoader(QObject):
         Args:
             category: Category to potentially unload
         """
-        # For now, we don't unload components to avoid complexity
-        # In a more advanced implementation, we could unload components
-        # that haven't been used recently and are memory-intensive
+        # TODO: Implement unloading of unused components for memory optimization
         pass
 
     def clear_all(self) -> None:
