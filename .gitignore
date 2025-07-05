@@ -2,3 +2,5 @@ __pycache__/
 __init__.py
 *.log
 *.pyc
+.VSCodeCounter/
+.venv/
