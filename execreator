@@ -1,0 +1,83 @@
+● Based on my review of the codebase, here's how to create an executable release for Windows:
+
+  Creating Windows Executable with PyInstaller
+
+  This is a PyQt6-based LMU Configuration Editor. The best approach is using PyInstaller to create a standalone executable.
+
+  Option 1: PyInstaller (Recommended)
+
+  1. Install PyInstaller:
+  pip install pyinstaller
+  2. Create PyInstaller spec file:
+  pyinstaller --onefile --windowed --name="LMU-Config-Editor" src/json_lmu_editor/main.py
+  3. For a more complete build, create a spec file manually:
+  # lmu_config_editor.spec
+  # -*- mode: python ; coding: utf-8 -*-
+
+  block_cipher = None
+
+  a = Analysis(
+      ['src/json_lmu_editor/main.py'],
+      pathex=[],
+      binaries=[],
+      datas=[],
+      hiddenimports=[
+          'PyQt6.QtCore',
+          'PyQt6.QtGui',
+          'PyQt6.QtWidgets',
+          'json_lmu_editor.ui.app',
+          'json_lmu_editor.core.parsers.json_parser',
+          'json_lmu_editor.core.parsers.ini_parser',
+      ],
+      hookspath=[],
+      hooksconfig={},
+      runtime_hooks=[],
+      excludes=[],
+      win_no_prefer_redirects=False,
+      win_private_assemblies=False,
+      cipher=block_cipher,
+      noarchive=False,
+  )
+
+  pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+  exe = EXE(
+      pyz,
+      a.scripts,
+      a.binaries,
+      a.zipfiles,
+      a.datas,
+      [],
+      name='LMU-Config-Editor',
+      debug=False,
+      bootloader_ignore_signals=False,
+      strip=False,
+      upx=True,
+      upx_exclude=[],
+      runtime_tmpdir=None,
+      console=False,
+      disable_windowed_traceback=False,
+      target_arch=None,
+      codesign_identity=None,
+      entitlements_file=None,
+      icon='icon.ico'  # Add if you have an icon
+  )
+
+  Option 2: Auto-py-to-exe (GUI for PyInstaller)
+
+  1. Install:
+  pip install auto-py-to-exe
+  2. Run GUI:
+  auto-py-to-exe
+
+  Build Commands
+
+  For the current project structure, use:
+
+  # One-file executable (slower startup, portable)
+  pyinstaller --onefile --windowed --name="LMU-Config-Editor" --add-data "src;src" src/json_lmu_editor/main.py
+
+  # One-directory executable (faster startup, folder distribution)
+  pyinstaller --onedir --windowed --name="LMU-Config-Editor" --add-data "src;src" src/json_lmu_editor/main.py
+
+  The executable will be created in the dist/ folder and can be run without Python installed on the target Windows machine.
